@@ -453,17 +453,9 @@ sub git_set_submodule_config
     return;
 }
 
-sub git_clone_all_submodules
+sub git_update_all_submodules
 {
     my ($self) = @_;
-
-    # manually clone each repo here, so we can easily use reference repos, mirrors etc
-    my @configresult = qx(git config -l);
-    foreach my $line (@configresult) {
-        if ($line =~ /submodule\.([^.=]+)\.url=(.*)/) {
-            $self->git_clone_one_submodule($1, $2);
-        }
-    }
 
     if ($self->{update}) {
         $self->exe('git', 'submodule', 'update', '--recursive');
@@ -500,80 +492,6 @@ sub git_add_remotes
     return;
 }
 
-sub git_clone_one_submodule
-{
-    my ($self, $submodule, $url) = @_;
-
-    my $alternates            = $self->{ 'alternates'        };
-    my $mirror_url            = $self->{ 'mirror-url'        };
-    my $protocol              = $self->{ 'protocol'          };
-
-    # `--reference FOO' args for the clone, if any.
-    my @reference_args;
-
-    if ($alternates) {
-        # alternates is a qt5 repo, so the submodule will be under that.
-        if (-d "$alternates/$submodule") {
-            @reference_args = ('--reference', "$alternates/$submodule");
-        }
-        else {
-            print " *** $alternates/$submodule not found, ignoring alternate for this submodule\n";
-        }
-    }
-
-    my $mirror;
-    if ($mirror_url) {
-        $mirror = $mirror_url."qt/$submodule";
-        $mirror .= ".git" unless (-d $mirror); # Support local disk mirror
-    }
-
-    if ($mirror) {
-        # Only use the mirror if it can be reached.
-        eval { $self->exe('git', 'ls-remote', $mirror, 'test/if/mirror/exists') };
-        if ($@) {
-            warn "mirror [$mirror] is not accessible; $url will be used\n";
-            undef $mirror;
-        }
-    }
-
-    my $do_clone = (! -d "$submodule/.git");
-    if ($do_clone) {
-        $self->exe('git', 'clone', @reference_args, ($mirror ? $mirror : $url), $submodule);
-    }
-
-    chdir($submodule) or confess "chdir $submodule: $OS_ERROR";
-
-    $self->exe('git', 'config', 'remote.origin.url', $url);
-    if ($mirror) {
-        $self->exe('git', 'config', 'remote.mirror.url', $mirror);
-        $self->exe('git', 'config', 'remote.mirror.fetch', '+refs/heads/*:refs/remotes/mirror/*');
-    }
-
-    if (!$do_clone) {
-        $self->exe('git', 'fetch', ($mirror ? $mirror : $url));
-    }
-
-    my $template = getcwd()."/../.commit-template";
-    if (-e $template) {
-        $self->exe('git', 'config', 'commit.template', $template);
-    }
-
-    $self->git_add_remotes($submodule);
-
-    if ($self->{'detach-alternates'}) {
-        $self->exe('git', 'repack', '-a');
-
-        my $alternates_path = '.git/objects/info/alternates';
-        if (-e $alternates_path) {
-            unlink($alternates_path) || confess "unlink $alternates_path: $OS_ERROR";
-        }
-    }
-
-    chdir("..") or confess "cd ..: $OS_ERROR";
-
-    return;
-}
-
 sub run
 {
     my ($self) = @_;
@@ -591,7 +509,7 @@ sub run
 
     $self->git_set_submodule_config;
 
-    $self->git_clone_all_submodules;
+    $self->git_update_all_submodules;
 
     $self->git_add_remotes('qt5');
 
