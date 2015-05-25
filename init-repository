@@ -382,9 +382,9 @@ sub git_clone_all_submodules
         }
     }
 
-    foreach my $module (@modules) {
-        $self->git_clone_one_submodule($subdirs{$module}, $subbases{$module});
-    }
+#    foreach my $module (@modules) {
+#        $self->git_clone_one_submodule($subdirs{$module}, $subbases{$module});
+#    }
 
     if ($self->{update}) {
         $self->exe('git', 'submodule', 'update', ($co_branch ? ('--remote', '--rebase') : ()));
@@ -560,7 +560,7 @@ sub run
 
     $self->git_add_remotes('qt/qt5');
 
-    $self->git_install_hooks;
+#    $self->git_install_hooks;
 
     return;
 }
